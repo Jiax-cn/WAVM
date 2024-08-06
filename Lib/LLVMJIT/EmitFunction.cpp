@@ -361,6 +361,26 @@ void EmitFunctionContext::emit()
 		}
 	}
 
+	if(!irModule.featureSpec.nonWASMFunctionTypes) {
+		llvm::Value* globalTimeoutFlagOffset = irBuilder.CreatePtrToInt(
+				moduleContext.globals[moduleContext.globals.size()-1], moduleContext.iptrType);
+		llvm::Value* globalTimeoutFlagPointer = irBuilder.CreateInBoundsGEP(
+				irBuilder.CreateLoad(contextPointerVariable), {globalTimeoutFlagOffset});
+		globalTimeoutFlag = loadFromUntypedPointer(globalTimeoutFlagPointer,
+										asLLVMType(llvmContext, ValueType::i32),
+										getTypeByteWidth(ValueType::i32));
+
+		auto isTimeout = irBuilder.CreateICmpEQ(globalTimeoutFlag, irBuilder.getInt32(1));
+
+		auto trapBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("TimeoutTrap") + "Trap", function);
+		auto skipBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("TimeoutTrap") + "Skip", function);
+		irBuilder.CreateCondBr(isTimeout, trapBlock, skipBlock, moduleContext.likelyFalseBranchWeights);
+		irBuilder.SetInsertPoint(trapBlock);
+		emitRuntimeIntrinsic("TimeoutTrap", FunctionType({}, {}, IR::CallingConvention::intrinsic), {});
+		irBuilder.CreateBr(skipBlock);
+		irBuilder.SetInsertPoint(skipBlock);
+	}
+
 	if(EMIT_ENTER_EXIT_HOOKS)
 	{
 		emitRuntimeIntrinsic(

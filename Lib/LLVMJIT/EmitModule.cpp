@@ -289,6 +289,7 @@ void LLVMJIT::emitModule(const IR::Module& irModule,
 		setFunctionAttributes(targetMachine, function);
 
 		EmitFunctionContext(llvmContext, moduleContext, irModule, functionDef, function).emit();
+		// function->print(llvm::outs(), nullptr);
 	}
 
 	// Finalize the debug info.

@@ -21,6 +21,7 @@ namespace WAVM { namespace LLVMJIT {
 		const IR::FunctionDef& functionDef;
 		IR::FunctionType functionType;
 		llvm::Function* function;
+		llvm::LoadInst* globalTimeoutFlag = nullptr;
 
 		std::vector<llvm::Value*> localPointers;
 

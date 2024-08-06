@@ -1666,6 +1666,9 @@ bool WASM::loadBinaryModule(const U8* wasmBytes,
 
 		serializeModule(stream, outModule);
 
+		outModule.globals.defs.push_back({GlobalType(ValueType::i32, true), InitializerExpression(I32(0))});
+		outModule.exports.push_back({"timeout_flag", ExternKind::global, outModule.globals.defs.size()-1});
+
 		Timing::logRatePerSecond("Loaded WASM", loadTimer, numWASMBytes / 1024.0 / 1024.0, "MiB");
 		return true;
 	}

@@ -1,6 +1,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <unistd.h>
 #include <memory>
 #include <string>
 #include <utility>
@@ -239,6 +241,7 @@ struct State
 	bool precompiled = false;
 	bool allowCaching = true;
 	WASI::SyscallTraceLevel wasiTraceLavel = WASI::SyscallTraceLevel::none;
+	Context* context;
 
 	// Objects that need to be cleaned up before exiting.
 	GCPointer<Compartment> compartment = createCompartment();
@@ -630,10 +633,46 @@ struct State
 		return true;
 	}
 
+	class SignalHandler {
+		private:
+			Global* timeout_flag = nullptr;
+			Context* context = nullptr;
+
+			static SignalHandler *instance;
+		public:
+			explicit SignalHandler(Global* global, Context* context) : timeout_flag(global), context(context) {}
+			~SignalHandler() {}
+
+			static void handleSignal(int) {
+				if (instance) {
+					printf("get\n");
+					setGlobalValue(instance->context, instance->timeout_flag, 1);
+				}
+			}
+
+			void registerHandler(int signum) {
+				struct sigaction action;
+				action.sa_handler = SignalHandler::handleSignal;
+				sigemptyset(&action.sa_mask);
+				action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+
+				if (sigaction(signum, &action, nullptr) < 0) {
+					perror("sigaction");
+					exit(1);
+				}
+
+				// 设置静态实例指针
+				instance = this;
+			}
+	};
+
 	I32 execute(const IR::Module& irModule, Instance* instance)
 	{
 		// Create a WASM execution context.
 		Context* context = Runtime::createContext(compartment);
+
+		SignalHandler handler(getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true)), context);
+		handler.registerHandler(SIGALRM);
 
 		// Call the module start function, if it has one.
 		Function* startFunction = getStartFunction(instance);
@@ -857,6 +896,8 @@ struct State
 		return result;
 	}
 };
+
+State::SignalHandler *State::SignalHandler::instance = nullptr;
 
 int execRunCommand(int argc, char** argv)
 {

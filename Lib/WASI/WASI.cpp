@@ -23,6 +23,19 @@ using namespace WAVM::IR;
 using namespace WAVM::Runtime;
 using namespace WAVM::WASI;
 
+namespace WAVM { namespace Runtime {
+	WAVM::Intrinsics::Module* getIntrinsicModule_wavmIntrinsics();
+}}
+
+WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
+							   "TimeoutTrap",
+							   void,
+							   TimeoutTrap)
+{
+	printf("timeout\n");
+	throwException(ExceptionTypes::integerDivideByZeroOrOverflow);
+}
+
 namespace WAVM { namespace WASI {
 	WAVM_DEFINE_INTRINSIC_MODULE(wasi);
 }}

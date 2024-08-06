@@ -74,6 +74,18 @@ void EmitFunctionContext::loop(ControlStructureImm imm)
 	irBuilder.CreateBr(loopBodyBlock);
 	irBuilder.SetInsertPoint(loopBodyBlock);
 
+	if (globalTimeoutFlag) {
+		auto isTimeout = irBuilder.CreateICmpEQ(globalTimeoutFlag, irBuilder.getInt32(1));
+
+		auto trapBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("TimeoutTrap") + "Trap", function);
+		auto skipBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("TimeoutTrap") + "Skip", function);
+		irBuilder.CreateCondBr(isTimeout, trapBlock, skipBlock, moduleContext.likelyFalseBranchWeights);
+		irBuilder.SetInsertPoint(trapBlock);
+		emitRuntimeIntrinsic("TimeoutTrap", FunctionType({}, {}, IR::CallingConvention::intrinsic), {});
+		irBuilder.CreateBr(skipBlock);
+		irBuilder.SetInsertPoint(skipBlock);
+	}
+
 	// Push a control context that ends at the end block/phi.
 	pushControlStack(ControlContext::Type::loop, blockType.results(), endBlock, endPHIs);
 
