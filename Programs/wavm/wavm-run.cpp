@@ -674,6 +674,23 @@ struct State
 		SignalHandler handler(getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true)), context);
 		handler.registerHandler(SIGALRM);
 
+		char mapfilename[50];
+		sprintf(mapfilename, "/tmp/perf-%d.map", static_cast<int>(getpid()));
+		FILE * map = fopen(mapfilename, "w+");
+		if (map) {
+			printf("%s enter\n", mapfilename);
+			std::vector<Runtime::Function*> functions;
+			getInstanceFunctions(instance, functions);
+			for (const auto& function_iter : functions) {
+				fprintf(map, "%lx %lx %s\n",
+					reinterpret_cast<uintptr_t>(function_iter->code),
+					static_cast<unsigned long>(function_iter->mutableData->numCodeBytes),
+					function_iter->mutableData->debugName.c_str());
+			}
+      		fclose(map);
+			printf("%s written\n", mapfilename);
+		}
+
 		// Call the module start function, if it has one.
 		Function* startFunction = getStartFunction(instance);
 		if(startFunction) { invokeFunction(context, startFunction); }
