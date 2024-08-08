@@ -70,6 +70,12 @@ private:
 	GCPointer<Compartment> compartment;
 };
 
+static bool defaultCallback(std::string name)
+{
+	(void) name;
+	return true;
+}
+
 static bool loadTextOrBinaryModule(const char* filename,
 								   std::vector<U8>&& fileBytes,
 								   const IR::FeatureSpec& featureSpec,
@@ -334,6 +340,7 @@ struct State
 			else if(!strcmp(*nextArg, "--detect-timeout"))
 			{
 				featureSpec.timeoutDetection = true;
+				LLVMJIT::setCheckListCallback(defaultCallback);
 			}
 			else if(!strcmp(*nextArg, "--nocache"))
 			{

@@ -121,11 +121,17 @@ static llvm::Constant* createImportedConstant(llvm::Module& llvmModule, llvm::Tw
 									externalName);
 }
 
-bool LLVMJIT::isInCheckList(DisassemblyNames disassemblyNames, Uptr index)
+static bool defaultChecklist(std::string name)
 {
-	(void) disassemblyNames;
-	(void) index;
+	(void) name;
 	return true;
+}
+
+checkListCallback isInCheckList = defaultChecklist;
+
+void LLVMJIT::setCheckListCallback(checkListCallback callback)
+{
+	isInCheckList = callback;
 }
 
 void LLVMJIT::emitModule(const IR::Module& irModule,
@@ -295,8 +301,8 @@ void LLVMJIT::emitModule(const IR::Module& irModule,
 								 moduleContext.typeIds[functionDef.type.index]);
 		setFunctionAttributes(targetMachine, function);
 
-		bool enableTimeoutCheck = irModule.featureSpec.timeoutDetection && 
-								  isInCheckList(disassemblyNames, functionDefIndex + irModule.functions.imports.size());
+		std::string function_name = disassemblyNames.functions[irModule.functions.imports.size() + functionDefIndex].name;
+		bool enableTimeoutCheck = irModule.featureSpec.timeoutDetection && isInCheckList(function_name);
 
 		EmitFunctionContext(llvmContext, moduleContext, irModule, functionDef, function, enableTimeoutCheck).emit();
 		// function->print(llvm::outs(), nullptr);
