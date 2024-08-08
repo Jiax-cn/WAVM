@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,6 +37,12 @@
 using namespace WAVM;
 using namespace WAVM::IR;
 using namespace WAVM::Runtime;
+
+static bool defaultCallback(std::string name)
+{
+	(void) name;
+	return true;
+}
 
 // A resolver that generates a stub if an inner resolver does not resolve a name.
 struct StubFallbackResolver : Resolver
@@ -322,6 +329,11 @@ struct State
 			else if(!strcmp(*nextArg, "--precompiled"))
 			{
 				precompiled = true;
+			}
+			else if(!strcmp(*nextArg, "--detect-timeout"))
+			{
+				featureSpec.timeoutDetection = true;
+				LLVMJIT::setCheckListCallback(defaultCallback);
 			}
 			else if(!strcmp(*nextArg, "--nocache"))
 			{
@@ -630,10 +642,30 @@ struct State
 		return true;
 	}
 
+	struct MonitorArgs {
+		Global* global = nullptr;
+		Context* context = nullptr;
+	};
+
+	static void* monitorThread(void* threadArg) {
+		struct MonitorArgs* args = (struct MonitorArgs*)threadArg;
+		if (args && args->context && args->global) {
+			usleep(2 * 1000);
+			setGlobalValue(args->context, args->global, 1);
+		}
+		return NULL;
+	}
+
 	I32 execute(const IR::Module& irModule, Instance* instance)
 	{
 		// Create a WASM execution context.
 		Context* context = Runtime::createContext(compartment);
+
+		struct MonitorArgs args;
+		args.global = getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true));
+		args.context = context;
+		pthread_t tid;
+		pthread_create(&tid, NULL,  monitorThread, (void*)&args);
 
 		// Call the module start function, if it has one.
 		Function* startFunction = getStartFunction(instance);
@@ -728,6 +760,7 @@ struct State
 		// Invoke the function.
 		invokeFunction(
 			context, function, invokeSig, untaggedInvokeArgs.data(), untaggedInvokeResults.data());
+		pthread_join(tid, NULL);
 
 		if(untaggedInvokeResults.size() == 1 && invokeSig.results()[0] == ValueType::i32)
 		{ return untaggedInvokeResults[0].i32; }
