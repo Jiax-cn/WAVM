@@ -86,13 +86,12 @@ void Runtime::invokeFunction(Context* context,
 	invokeContext.outResults = outResults;
 	invokeContext.invokeThunk = invokeThunk;
 
-	struct itimerval timer;
-	timer.it_value.tv_sec = 0;
-	timer.it_value.tv_usec = 50 * 1000;
-	timer.it_interval.tv_sec = 0;
-	timer.it_interval.tv_usec = 0;
-	setitimer(ITIMER_REAL, &timer, nullptr);
-
+	// struct itimerval timer;
+	// timer.it_value.tv_sec = 0;
+	// timer.it_value.tv_usec = 50 * 1000;
+	// timer.it_interval.tv_sec = 0;
+	// timer.it_interval.tv_usec = 0;
+	// setitimer(ITIMER_REAL, &timer, nullptr);
 	// Use unwindSignalsAsExceptions to ensure that any signal that occurs in WebAssembly code calls
 	// C++ destructors on the stack between here and where it is caught.
 	unwindSignalsAsExceptions([&invokeContext] {
@@ -104,5 +103,5 @@ void Runtime::invokeFunction(Context* context,
 									 invokeContext.arguments,
 									 invokeContext.outResults);
 	});
-	setitimer(ITIMER_REAL, &timer, nullptr);
+	// setitimer(ITIMER_REAL, &timer, nullptr);
 }

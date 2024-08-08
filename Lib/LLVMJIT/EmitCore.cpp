@@ -74,7 +74,15 @@ void EmitFunctionContext::loop(ControlStructureImm imm)
 	irBuilder.CreateBr(loopBodyBlock);
 	irBuilder.SetInsertPoint(loopBodyBlock);
 
-	if (globalTimeoutFlag) {
+	if (insertTimeoutCheck) {
+		auto globalTimeoutFlagOffset = irBuilder.CreatePtrToInt(
+				moduleContext.globals[moduleContext.globals.size()-1], moduleContext.iptrType);
+		auto globalTimeoutFlagPointer = irBuilder.CreateInBoundsGEP(
+				irBuilder.CreateLoad(contextPointerVariable), {globalTimeoutFlagOffset});
+		auto globalTimeoutFlag = loadFromUntypedPointer(globalTimeoutFlagPointer,
+										asLLVMType(llvmContext, ValueType::i32),
+										getTypeByteWidth(ValueType::i32));
+
 		auto isTimeout = irBuilder.CreateICmpEQ(globalTimeoutFlag, irBuilder.getInt32(1));
 
 		auto trapBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("TimeoutTrap") + "Trap", function);

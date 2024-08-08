@@ -32,8 +32,8 @@ WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
 							   void,
 							   TimeoutTrap)
 {
-	printf("timeout\n");
-	throwException(ExceptionTypes::integerDivideByZeroOrOverflow);
+	printf("timeout detected!\n");
+	throwException(ExceptionTypes::timeoutDetected);
 }
 
 namespace WAVM { namespace WASI {

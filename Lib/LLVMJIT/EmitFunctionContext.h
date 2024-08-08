@@ -21,7 +21,7 @@ namespace WAVM { namespace LLVMJIT {
 		const IR::FunctionDef& functionDef;
 		IR::FunctionType functionType;
 		llvm::Function* function;
-		llvm::LoadInst* globalTimeoutFlag = nullptr;
+		bool insertTimeoutCheck;
 
 		std::vector<llvm::Value*> localPointers;
 
@@ -67,13 +67,15 @@ namespace WAVM { namespace LLVMJIT {
 							EmitModuleContext& inModuleContext,
 							const IR::Module& inIRModule,
 							const IR::FunctionDef& inFunctionDef,
-							llvm::Function* inLLVMFunction)
+							llvm::Function* inLLVMFunction,
+							bool enableTimeoutCheck)
 		: EmitContext(inLLVMContext, inModuleContext.memoryOffsets)
 		, moduleContext(inModuleContext)
 		, irModule(inIRModule)
 		, functionDef(inFunctionDef)
 		, functionType(inIRModule.types[inFunctionDef.type.index])
 		, function(inLLVMFunction)
+		, insertTimeoutCheck(enableTimeoutCheck)
 		{
 		}
 

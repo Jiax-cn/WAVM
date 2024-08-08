@@ -43,7 +43,8 @@
 
 // WAVM extensions meant for internal use only (not exposed to users).
 #define WAVM_ENUM_INTERNAL_FEATURES(V)                                                             \
-	V(nonWASMFunctionTypes, "non-wasm-func-types", "Non-WebAssembly function calling conventions")
+	V(nonWASMFunctionTypes, "non-wasm-func-types", "Non-WebAssembly function calling conventions") \
+	V(timeoutDetection, "timeout-detection", "detect timeout in loops")
 
 #define WAVM_ENUM_FEATURES(V)                                                                      \
 	WAVM_ENUM_STANDARD_FEATURES(V)                                                                 \

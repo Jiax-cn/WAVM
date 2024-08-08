@@ -369,6 +369,8 @@ namespace WAVM { namespace LLVMJIT {
 #endif
 	}
 
+	bool isInCheckList(IR::DisassemblyNames disassemblyNames, Uptr index);
+
 	// Emits LLVM IR for a module.
 	void emitModule(const IR::Module& irModule,
 					LLVMContext& llvmContext,

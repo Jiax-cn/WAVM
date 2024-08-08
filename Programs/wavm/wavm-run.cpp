@@ -239,6 +239,7 @@ struct State
 	std::vector<std::string> runArgs;
 	ABI abi = ABI::detect;
 	bool precompiled = false;
+	bool linux_perf = false;
 	bool allowCaching = true;
 	WASI::SyscallTraceLevel wasiTraceLavel = WASI::SyscallTraceLevel::none;
 	Context* context;
@@ -325,6 +326,14 @@ struct State
 			else if(!strcmp(*nextArg, "--precompiled"))
 			{
 				precompiled = true;
+			}
+			else if(!strcmp(*nextArg, "--enable-perf"))
+			{
+				linux_perf = true;
+			}
+			else if(!strcmp(*nextArg, "--detect-timeout"))
+			{
+				featureSpec.timeoutDetection = true;
 			}
 			else if(!strcmp(*nextArg, "--nocache"))
 			{
@@ -633,62 +642,88 @@ struct State
 		return true;
 	}
 
-	class SignalHandler {
-		private:
-			Global* timeout_flag = nullptr;
-			Context* context = nullptr;
+	// class SignalHandler {
+	// 	private:
+	// 		Global* timeout_flag = nullptr;
+	// 		Context* context = nullptr;
 
-			static SignalHandler *instance;
-		public:
-			explicit SignalHandler(Global* global, Context* context) : timeout_flag(global), context(context) {}
-			~SignalHandler() {}
+	// 		static SignalHandler *instance;
+	// 	public:
+	// 		explicit SignalHandler(Global* global, Context* context) : timeout_flag(global), context(context) {}
+	// 		~SignalHandler() {}
 
-			static void handleSignal(int) {
-				if (instance) {
-					printf("get\n");
-					setGlobalValue(instance->context, instance->timeout_flag, 1);
-				}
-			}
+	// 		static void handleSignal(int) {
+	// 			printf("get sigalarm\n");
+	// 			if (instance && instance->timeout_flag && instance->context) {
+	// 				setGlobalValue(instance->context, instance->timeout_flag, 1);
+	// 				printf("set flag\n");
+	// 			}
+	// 			else {
+	// 				printf("failed to set flag\n");
+	// 			}
+	// 		}
 
-			void registerHandler(int signum) {
-				struct sigaction action;
-				action.sa_handler = SignalHandler::handleSignal;
-				sigemptyset(&action.sa_mask);
-				action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+	// 		void registerHandler(int signum) {
+	// 			struct sigaction action;
+	// 			action.sa_handler = SignalHandler::handleSignal;
+	// 			sigemptyset(&action.sa_mask);
+	// 			action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
 
-				if (sigaction(signum, &action, nullptr) < 0) {
-					perror("sigaction");
-					exit(1);
-				}
+	// 			if (sigaction(signum, &action, nullptr) < 0) {
+	// 				perror("sigaction");
+	// 				exit(1);
+	// 			}
 
-				// 设置静态实例指针
-				instance = this;
-			}
+	// 			// 设置静态实例指针
+	// 			instance = this;
+	// 		}
+	// };
+
+	struct thread_arg {
+		Global* timeout_flag = nullptr;
+		Context* context = nullptr;
 	};
+
+	static void* worker(void* arg) {
+		struct thread_arg * argv = (struct thread_arg *)arg;
+		usleep(2 * 1000 * 1000);
+		if (arg && argv->context && argv->timeout_flag) {
+			setGlobalValue(argv->context, argv->timeout_flag, 1);
+		}
+		return NULL;
+	}
 
 	I32 execute(const IR::Module& irModule, Instance* instance)
 	{
 		// Create a WASM execution context.
 		Context* context = Runtime::createContext(compartment);
 
-		SignalHandler handler(getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true)), context);
-		handler.registerHandler(SIGALRM);
+		struct thread_arg arg;
+		arg.timeout_flag = getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true));
+		arg.context = context;
+		pthread_t tid;
+		pthread_create(&tid, NULL,  worker, (void*)&arg);
 
-		char mapfilename[50];
-		sprintf(mapfilename, "/tmp/perf-%d.map", static_cast<int>(getpid()));
-		FILE * map = fopen(mapfilename, "w+");
-		if (map) {
-			printf("%s enter\n", mapfilename);
-			std::vector<Runtime::Function*> functions;
-			getInstanceFunctions(instance, functions);
-			for (const auto& function_iter : functions) {
-				fprintf(map, "%lx %lx %s\n",
-					reinterpret_cast<uintptr_t>(function_iter->code),
-					static_cast<unsigned long>(function_iter->mutableData->numCodeBytes),
-					function_iter->mutableData->debugName.c_str());
+		// SignalHandler handler(getTypedInstanceExport(instance, "timeout_flag", GlobalType(ValueType::i32, true)), context);
+		// handler.registerHandler(SIGALRM);
+
+		if (linux_perf) {
+			char mapfilename[50];
+			sprintf(mapfilename, "/tmp/perf-%d.map", static_cast<int>(getpid()));
+			FILE * map = fopen(mapfilename, "w+");
+			if (map) {
+				printf("%s enter\n", mapfilename);
+				std::vector<Runtime::Function*> functions;
+				getInstanceFunctions(instance, functions);
+				for (const auto& function_iter : functions) {
+					fprintf(map, "%lx %lx %s\n",
+						reinterpret_cast<uintptr_t>(function_iter->code),
+						static_cast<unsigned long>(function_iter->mutableData->numCodeBytes),
+						function_iter->mutableData->debugName.c_str());
+				}
+				fclose(map);
+				printf("%s written\n", mapfilename);
 			}
-      		fclose(map);
-			printf("%s written\n", mapfilename);
 		}
 
 		// Call the module start function, if it has one.
@@ -784,7 +819,7 @@ struct State
 		// Invoke the function.
 		invokeFunction(
 			context, function, invokeSig, untaggedInvokeArgs.data(), untaggedInvokeResults.data());
-
+pthread_join(tid, NULL);
 		if(untaggedInvokeResults.size() == 1 && invokeSig.results()[0] == ValueType::i32)
 		{ return untaggedInvokeResults[0].i32; }
 		else
@@ -914,7 +949,7 @@ struct State
 	}
 };
 
-State::SignalHandler *State::SignalHandler::instance = nullptr;
+// State::SignalHandler *State::SignalHandler::instance = nullptr;
 
 int execRunCommand(int argc, char** argv)
 {
