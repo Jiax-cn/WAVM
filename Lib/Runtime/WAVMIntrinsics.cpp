@@ -22,6 +22,14 @@ namespace WAVM { namespace Runtime {
 }}
 
 WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
+							   "timeoutDetectedTrap",
+							   void,
+							   timeoutDetectedTrap)
+{
+	throwException(ExceptionTypes::timeoutDetected);
+}
+
+WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
 							   "divideByZeroOrIntegerOverflowTrap",
 							   void,
 							   divideByZeroOrIntegerOverflowTrap)

@@ -74,6 +74,26 @@ void EmitFunctionContext::loop(ControlStructureImm imm)
 	irBuilder.CreateBr(loopBodyBlock);
 	irBuilder.SetInsertPoint(loopBodyBlock);
 
+	if (insertTimeoutCheck) {
+		auto globalTimeoutFlagOffset = irBuilder.CreatePtrToInt(
+				moduleContext.globals[moduleContext.globals.size()-1], moduleContext.iptrType);
+		auto globalTimeoutFlagPointer = irBuilder.CreateInBoundsGEP(
+				irBuilder.CreateLoad(contextPointerVariable), {globalTimeoutFlagOffset});
+		auto globalTimeoutFlag = loadFromUntypedPointer(globalTimeoutFlagPointer,
+										asLLVMType(llvmContext, ValueType::i32),
+										getTypeByteWidth(ValueType::i32));
+
+		auto isTimeout = irBuilder.CreateICmpEQ(globalTimeoutFlag, irBuilder.getInt32(1));
+
+		auto trapBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("timeoutTrap") + "Trap", function);
+		auto skipBlock = llvm::BasicBlock::Create(llvmContext, llvm::Twine("timeoutTrap") + "Skip", function);
+		irBuilder.CreateCondBr(isTimeout, trapBlock, skipBlock, moduleContext.likelyFalseBranchWeights);
+		irBuilder.SetInsertPoint(trapBlock);
+		emitRuntimeIntrinsic("timeoutDetectedTrap", FunctionType({}, {}, IR::CallingConvention::intrinsic), {});
+		irBuilder.CreateBr(skipBlock);
+		irBuilder.SetInsertPoint(skipBlock);
+	}
+
 	// Push a control context that ends at the end block/phi.
 	pushControlStack(ControlContext::Type::loop, blockType.results(), endBlock, endPHIs);
 
