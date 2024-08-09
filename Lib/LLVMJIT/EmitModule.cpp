@@ -121,7 +121,7 @@ static llvm::Constant* createImportedConstant(llvm::Module& llvmModule, llvm::Tw
 									externalName);
 }
 
-static bool defaultChecklist(std::string name)
+static bool defaultChecklist(const std::string& name)
 {
 	(void) name;
 	return true;

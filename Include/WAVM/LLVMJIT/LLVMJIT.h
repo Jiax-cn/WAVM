@@ -50,7 +50,7 @@ namespace WAVM { namespace LLVMJIT {
 	WAVM_API TargetValidationResult validateTarget(const TargetSpec& targetSpec,
 												   const IR::FeatureSpec& featureSpec);
 
-	using checkListCallback = std::function<bool(std::string)>;
+	using checkListCallback = std::function<bool(const std::string& name)>;
 
 	WAVM_API void setCheckListCallback(checkListCallback callback);
 

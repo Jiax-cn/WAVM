@@ -38,7 +38,7 @@ using namespace WAVM;
 using namespace WAVM::IR;
 using namespace WAVM::Runtime;
 
-static bool defaultCallback(std::string name)
+static bool defaultCallback(const std::string& name)
 {
 	(void) name;
 	return true;
