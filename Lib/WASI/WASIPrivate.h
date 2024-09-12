@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <exception>
 #include "WAVM/IR/Types.h"
 #include "WAVM/Inline/BasicTypes.h"
 #include "WAVM/Inline/HashMap.h"
@@ -120,9 +121,32 @@ namespace WAVM { namespace WASI {
 		~Process();
 	};
 
-	struct ExitException
-	{
-		U32 exitCode;
+	class ExitException : public std::exception {
+		public:
+			U32 exitCode;
+
+			explicit ExitException(U32 exitcode) : exitCode(exitcode) {
+				if (exitcode) {
+					Platform::CallStack callStack = std::move(Platform::captureCallStack(0));
+					std::vector<std::string> callStackDescription = Runtime::describeCallStack(callStack);
+					err_msg_ += "unexpected exit!\nCall stack:\n";
+					for(auto calledFunction : callStackDescription)
+					{
+						err_msg_ += "  ";
+						err_msg_ += calledFunction.c_str();
+						err_msg_ += '\n';
+					}
+				} else {
+					err_msg_ += "successful exit!\n";
+				}
+			}
+
+			const char* what() const noexcept override {
+				return err_msg_.c_str();
+			}
+
+		private:
+			std::string err_msg_;
 	};
 
 	typedef U32 WASIAddress;

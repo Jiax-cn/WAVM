@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <vector>
+#include <exception>
 #include "EmscriptenABI.h"
 #include "WAVM/Emscripten/Emscripten.h"
 #include "WAVM/IR/Value.h"
@@ -126,9 +127,32 @@ namespace WAVM { namespace Emscripten {
 					 Runtime::Object*& outObject) override;
 	};
 
-	struct ExitException
-	{
-		U32 exitCode;
+	class ExitException : public std::exception {
+		public:
+			U32 exitCode;
+
+			explicit ExitException(U32 exitcode) : exitCode(exitcode) {
+				if (exitcode) {
+					Platform::CallStack callStack = std::move(Platform::captureCallStack(0));
+					std::vector<std::string> callStackDescription = Runtime::describeCallStack(callStack);
+					err_msg_ += "unexpected exit!\nCall stack:\n";
+					for(auto calledFunction : callStackDescription)
+					{
+						err_msg_ += "  ";
+						err_msg_ += calledFunction.c_str();
+						err_msg_ += '\n';
+					}
+				} else {
+					err_msg_ += "successful exit!\n";
+				}
+			}
+
+			const char* what() const noexcept override {
+				return err_msg_.c_str();
+			}
+
+		private:
+			std::string err_msg_;
 	};
 
 	struct ExitThreadException
